@@ -27,10 +27,9 @@ the commented section below at the end of the setup() function.
 */
 #include "Adafruit_FONA.h"
 
-#define FONA_RX  9
-#define FONA_TX  8
+#define FONA_RX 9
+#define FONA_TX 8
 #define FONA_RST 4
-#define FONA_RI  7
 
 // this is a large buffer for replies
 char replybuffer[255];

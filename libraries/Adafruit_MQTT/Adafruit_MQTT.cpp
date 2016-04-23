@@ -245,10 +245,10 @@ uint16_t Adafruit_MQTT::readFullPacket(uint8_t *buffer, uint16_t timeout) {
     intermediate *= multiplier;
     value += intermediate;
     multiplier *= 128;
-    if (multiplier > 128*128*128) {
-      DEBUG_PRINT(F("Malformed packet len\n"));
-      return 0;
-    }
+    // if (multiplier > 128*128*128) {
+    //   DEBUG_PRINT(F("Malformed packet len\n"));
+    //   return 0;
+    // }
   } while (encodedByte & 0x80);
 
   //DEBUG_PRINT(F("Packet Length:\t")); DEBUG_PRINTLN(value);

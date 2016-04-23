@@ -24,7 +24,7 @@
 #include "Adafruit_MQTT_FONA.h"
 
 /****************************** Pins ****************************************/
-#define BUTTON      10
+#define PUMP        10
 #define FONA_RX     9
 #define FONA_TX     8
 #define FONA_RST    4
@@ -72,27 +72,24 @@ Adafruit_MQTT_FONA mqtt(&fona, MQTT_SERVER, AIO_SERVERPORT, MQTT_CLIENTID, MQTT_
 // the GPRS network. See the fonahelper.cpp tab above for the source!
 boolean FONAconnect(const __FlashStringHelper *apn, const __FlashStringHelper *username, const __FlashStringHelper *password);
 
+
 /****************************** Feeds ***************************************/
 
-// Setup a feed called 'button' for publishing changes.
+// Setup a feed called 'pump' for subscribing to changes.
 // Notice MQTT paths for AIO follow the form: <username>/feeds/<feedname>
-const char BUTTON_FEED[] PROGMEM = AIO_USERNAME "/feeds/button";
-Adafruit_MQTT_Publish button = Adafruit_MQTT_Publish(&mqtt, BUTTON_FEED);
+const char PUMP_FEED[] PROGMEM = AIO_USERNAME "/feeds/pump";
+Adafruit_MQTT_Subscribe pump = Adafruit_MQTT_Subscribe(&mqtt, PUMP_FEED);
 
 /*************************** Sketch Code ************************************/
 
-// button state
-int current = 0;
-int last = -1;
-
 void setup() {
 
-  // set button pin as an input
-  pinMode(BUTTON, INPUT_PULLUP);
+  // set power switch tail pin as an output
+  pinMode(PUMP, OUTPUT);
 
   Serial.begin(115200);
 
-  Serial.println(F("Adafruit IO Example"));
+  Serial.println(F("Adafruit IO Example:"));
 
   // Initialise the FONA module
   while (! FONAconnect(F(FONA_APN), F(FONA_USERNAME), F(FONA_PASSWORD)))
@@ -104,12 +101,17 @@ void setup() {
   delay(3000);  // wait a few seconds to stabilize connection
   Watchdog.reset();
 
+  // listen for events on the pump feed
+  mqtt.subscribe(&pump);
+
   // connect to adafruit io
   connect();
 
 }
 
 void loop() {
+
+  Adafruit_MQTT_Subscribe *subscription;
 
   // Make sure to reset watchdog every loop iteration!
   Watchdog.reset();
@@ -121,27 +123,32 @@ void loop() {
       connect();
   }
 
-  // grab the current state of the button
-  current = digitalRead(BUTTON);
+  // this is our 'wait for incoming subscription packets' busy subloop
+  while (subscription = mqtt.readSubscription(1000)) {
 
-  // return if the value hasn't changed
-  if(current == last)
-    return;
+    // we only care about the pump events
+    if (subscription == &pump) {
 
-  int32_t value = (current == LOW ? 1 : 0);
+      // convert mqtt ascii payload to int
+      char *value = (char *)pump.lastread;
+      char x;
+      Serial.print(F("Received: "));
+      Serial.println(value);
+      //int current = atoi(value);
+      int current;
+      if (String(value) == "ON") {
 
-  // Now we can publish stuff!
-  Serial.print(F("\nSending button value: "));
-  Serial.print(value);
-  Serial.print("... ");
+        Serial.println("Turn on the Pump now");
+        current = 1;
+      } 
 
-  if (! button.publish(value))
-    Serial.println(F("Failed."));
-  else
-    Serial.println(F("Success!"));
 
-  // save the button state
-  last = current;
+      // write the current state to the power switch tail
+      digitalWrite(PUMP, current == 1 ? HIGH : LOW);
+
+    }
+
+  }
 
 }
 
