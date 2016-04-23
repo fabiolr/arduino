@@ -1,22 +1,4 @@
-/***************************************************
-  Adafruit MQTT Library FONA Example
-  Designed specifically to work with the Adafruit FONA
-  ----> http://www.adafruit.com/products/1946
-  ----> http://www.adafruit.com/products/1963
-  ----> http://www.adafruit.com/products/2468
-  ----> http://www.adafruit.com/products/2542
 
-  These cellular modules use TTL Serial to communicate, 2 pins are
-  required to interface.
-
-  Adafruit invests time and resources providing this open source code,
-  please support Adafruit and open-source hardware by purchasing
-  products from Adafruit!
-
-  Written by Limor Fried/Ladyada for Adafruit Industries.
-  Adafruit IO example additions by Todd Treece.
-  MIT license, all text above must be included in any redistribution
- ****************************************************/
 #include <Adafruit_SleepyDog.h>
 #include <SoftwareSerial.h>
 #include "Adafruit_FONA.h"
@@ -24,7 +6,8 @@
 #include "Adafruit_MQTT_FONA.h"
 
 /****************************** Pins ****************************************/
-#define PUMP        10
+#define RELAY_SET   10
+#define RELAY_UNSET   11
 #define FONA_RX     9
 #define FONA_TX     8
 #define FONA_RST    4
@@ -34,11 +17,6 @@ Adafruit_FONA fona = Adafruit_FONA(FONA_RST);
 
 /*************************** Cellular APN *************************************/
 
-  // Optionally configure a GPRS APN, username, and password.
-  // You might need to do this to access your network's GPRS/data
-  // network.  Contact your provider for the exact APN, username,
-  // and password values.  Username and password are optional and
-  // can be removed, but APN is required.
 #define FONA_APN       "wholesale"
 #define FONA_USERNAME  ""
 #define FONA_PASSWORD  ""
@@ -53,39 +31,36 @@ Adafruit_FONA fona = Adafruit_FONA(FONA_RST);
 /************ Global State (you don't need to change this!) ******************/
 
 // Store the MQTT server, client ID, username, and password in flash memory.
-// This is required for using the Adafruit MQTT library.
 const char MQTT_SERVER[] PROGMEM    = AIO_SERVER;
-// Set a unique MQTT client ID using the AIO key + the date and time the sketch
-// was compiled (so this should be unique across multiple devices for a user,
-// alternatively you can manually set this to a GUID or other random value).
+// Set a unique MQTT client ID 
 const char MQTT_CLIENTID[] PROGMEM  = __TIME__ AIO_USERNAME;
 const char MQTT_USERNAME[] PROGMEM  = AIO_USERNAME;
 const char MQTT_PASSWORD[] PROGMEM  = AIO_KEY;
 
-// Setup the FONA MQTT class by passing in the FONA class and MQTT server and login details.
+// Setup the FONA MQTT
 Adafruit_MQTT_FONA mqtt(&fona, MQTT_SERVER, AIO_SERVERPORT, MQTT_CLIENTID, MQTT_USERNAME, MQTT_PASSWORD);
-
-// You don't need to change anything below this line!
 #define halt(s) { Serial.println(F( s )); while(1);  }
-
-// FONAconnect is a helper function that sets up the FONA and connects to
-// the GPRS network. See the fonahelper.cpp tab above for the source!
+// FONAconnect is a helper function that sets up the FONA and connects to GPRS
 boolean FONAconnect(const __FlashStringHelper *apn, const __FlashStringHelper *username, const __FlashStringHelper *password);
 
 
 /****************************** Feeds ***************************************/
 
 // Setup a feed called 'pump' for subscribing to changes.
-// Notice MQTT paths for AIO follow the form: <username>/feeds/<feedname>
 const char PUMP_FEED[] PROGMEM = AIO_USERNAME "/feeds/pump";
 Adafruit_MQTT_Subscribe pump = Adafruit_MQTT_Subscribe(&mqtt, PUMP_FEED);
+
+// Setup a feed called 'ack_pumpon' for publishing ack messages.
+const char ACK_PUMPON_FEED[] PROGMEM = AIO_USERNAME "/feeds/ack_pumpon";
+Adafruit_MQTT_Publish ack_pumpon = Adafruit_MQTT_Publish(&mqtt, ACK_PUMPON_FEED);
 
 /*************************** Sketch Code ************************************/
 
 void setup() {
 
   // set power switch tail pin as an output
-  pinMode(PUMP, OUTPUT);
+  pinMode(RELAY_SET, OUTPUT);
+  pinMode(RELAY_UNSET, OUTPUT);
 
   Serial.begin(115200);
 
@@ -113,10 +88,9 @@ void loop() {
 
   Adafruit_MQTT_Subscribe *subscription;
 
-  // Make sure to reset watchdog every loop iteration!
   Watchdog.reset();
 
-  // ping adafruit io a few times to make sure we remain connected
+  // ping adafruit io to make sure we remain connected
   if(! mqtt.ping(3)) {
     // reconnect to adafruit io
     if(! mqtt.connected())
@@ -131,20 +105,36 @@ void loop() {
 
       // convert mqtt ascii payload to int
       char *value = (char *)pump.lastread;
-      char x;
       Serial.print(F("Received: "));
-      Serial.println(value);
-      //int current = atoi(value);
-      int current;
-      if (String(value) == "ON") {
+      int current = atoi(value);
+      Serial.println(current);
 
-        Serial.println("Turn on the Pump now");
-        current = 1;
-      } 
+      if (current == 1) {
 
+          // we need to turn the pump on
+            digitalWrite(RELAY_SET, HIGH);
+            delay(50);
+            digitalWrite(RELAY_SET, LOW);
+            Serial.println("Relay Set");
+            sendACK("1");
+
+      }
+      
+      if (current == 0) {
+
+          // we need to turn the pump OF
+            digitalWrite(RELAY_UNSET, HIGH);
+            delay(50);
+            digitalWrite(RELAY_UNSET, LOW);
+            Serial.println("Relay Unlatched");
+            sendACK("0");
+
+      }
 
       // write the current state to the power switch tail
-      digitalWrite(PUMP, current == 1 ? HIGH : LOW);
+   //   digitalWrite(PUMP, current == 1 ? HIGH : LOW);
+
+      
 
     }
 
@@ -187,3 +177,15 @@ void connect() {
   Serial.println(F("Adafruit IO Connected!"));
 
 }
+
+void sendACK(char* msg) {
+
+           //Let's tell the server we turned the pump on.
+          Serial.print(F("\nSending ACK"));
+           if (! ack_pumpon.publish(msg))
+           Serial.println(F("Failed."));
+           else
+           Serial.println(F("Success!"));
+
+}
+

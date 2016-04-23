@@ -24,7 +24,7 @@
 #include "Adafruit_MQTT_FONA.h"
 
 /****************************** Pins ****************************************/
-#define BUTTON      10
+#define FLOATSWITCH      10
 #define FONA_RX     9
 #define FONA_TX     8
 #define FONA_RST    4
@@ -74,21 +74,21 @@ boolean FONAconnect(const __FlashStringHelper *apn, const __FlashStringHelper *u
 
 /****************************** Feeds ***************************************/
 
-// Setup a feed called 'button' for publishing changes.
+// Setup a feed called 'floatswitch' for publishing changes.
 // Notice MQTT paths for AIO follow the form: <username>/feeds/<feedname>
-const char BUTTON_FEED[] PROGMEM = AIO_USERNAME "/feeds/button";
-Adafruit_MQTT_Publish button = Adafruit_MQTT_Publish(&mqtt, BUTTON_FEED);
+const char FLOATSWITCH_FEED[] PROGMEM = AIO_USERNAME "/feeds/floatswitch";
+Adafruit_MQTT_Publish floatswitch = Adafruit_MQTT_Publish(&mqtt, FLOATSWITCH_FEED);
 
 /*************************** Sketch Code ************************************/
 
-// button state
+// floatswitch state
 int current = 0;
 int last = -1;
 
 void setup() {
 
-  // set button pin as an input
-  pinMode(BUTTON, INPUT_PULLUP);
+  // set floatswitch pin as an input
+  pinMode(FLOATSWITCH, INPUT_PULLUP);
 
   Serial.begin(115200);
 
@@ -121,8 +121,8 @@ void loop() {
       connect();
   }
 
-  // grab the current state of the button
-  current = digitalRead(BUTTON);
+  // grab the current state of the floatswitch
+  current = digitalRead(FLOATSWITCH);
 
   // return if the value hasn't changed
   if(current == last)
@@ -131,16 +131,16 @@ void loop() {
   int32_t value = (current == LOW ? 1 : 0);
 
   // Now we can publish stuff!
-  Serial.print(F("\nSending button value: "));
+  Serial.print(F("\nSending floatswitch value: "));
   Serial.print(value);
   Serial.print("... ");
 
-  if (! button.publish(value))
+  if (! floatswitch.publish(value))
     Serial.println(F("Failed."));
   else
     Serial.println(F("Success!"));
 
-  // save the button state
+  // save the floatswitch state
   last = current;
 
 }
